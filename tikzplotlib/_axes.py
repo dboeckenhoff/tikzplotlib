@@ -48,12 +48,15 @@ class Axes:
 
         # get axes titles
         xlabel = obj.get_xlabel()
-        if xlabel:
+        self._has_xlabel = False
+        self._has_ylabel = False
+        if xlabel and obj.xaxis.get_visible() and obj.xaxis.label.get_visible():
             xlabel = _common_texification(xlabel)
             self.axis_options.append(f"xlabel={{{xlabel}}}")
             xrotation = obj.xaxis.get_label().get_rotation()
             if xrotation != 0:
                 self.axis_options.append(f"xlabel style={{rotate={xrotation - 90}}}")
+            self._has_xlabel = True
         ylabel = obj.get_ylabel()
         if ylabel:
             ylabel = _common_texification(ylabel)
@@ -61,6 +64,9 @@ class Axes:
             yrotation = obj.yaxis.get_label().get_rotation()
             if yrotation != 90:
                 self.axis_options.append(f"ylabel style={{rotate={yrotation - 90}}}")
+            self._has_ylabel = True
+        self._has_xticks = obj.xaxis.get_major_ticks()
+        self._has_yticks = obj.yaxis.get_major_ticks()
 
         # Axes limits.
         ff = data["float format"]
@@ -106,6 +112,11 @@ class Axes:
             aspect_num = 1.0
         else:
             aspect_num = float(aspect)
+
+        self._scale_only_axis = not self._has_ylabel and not self._has_yticks
+        # "scale only axis=false" is default
+        self.axis_options.append("scale only axis={}"
+                                 .format(str(self._scale_only_axis).lower()))
 
         self._set_axis_dimensions(data, aspect_num, xlim, ylim)
 
@@ -157,15 +168,29 @@ class Axes:
         return content
 
     def get_end_code(self, data):
+        code = ""
         if not self.is_subplot:
-            return data["flavor"].end("axis") + "\n\n"
+            code += data["flavor"].end("axis") + "\n\n"
         elif self.is_subplot and self.nsubplots == self.subplot_index:
             data["is_in_groupplot_env"] = False
-            return data["flavor"].end("groupplot") + "\n\n"
+            code += data["flavor"].end("groupplot") + "\n\n"
 
-        return ""
+        if self._correct_width:
+        return code
 
     def _set_axis_dimensions(self, data, aspect_num, xlim, ylim):
+        # auto scaling
+        self._correct_width = False
+        if ylim[0] < 0 and not self._scale_only_axis:
+            self._correct_width = True
+            self.content.append("\\newlength{\\hyphenwidth}\n"
+                                "\\setlength{\\hyphenwidth}{\\widthof{$-$}}\n\n")
+            # if the full figure width should be scaled - not only the axis - we
+            # need to correct for a bug in pgfplots which does not take the
+            # width of the minus (utf8 symbol 2018) into account.
+            data["fwidth"] = "(" + data["fwidth"] + " - \\hyphenwidth)"
+
+
         if data["axis width"] and data["axis height"]:
             # width and height overwrite aspect ratio
             self.axis_options.append("width=" + data["axis width"])
@@ -216,6 +241,11 @@ class Axes:
                 data, "minor y", obj.get_yticks("minor"), obj.get_yticklabels("minor")
             )
         )
+        
+        if not self._has_xticks and not self._has_yticks:
+            # remove ticks
+            # TODO: become more specific. 
+            self.axis_options.append("ticks=none")
 
         try:
             l0 = obj.get_xticklines()[0]

@@ -44,12 +44,10 @@ def draw_text(data, obj):
         # already captured by the `title` property of pgfplots axes, so skip them here.
         return data, content
 
-    size = obj.get_size()
+    font_size = obj.get_fontsize()
     bbox = obj.get_bbox_patch()
     converter = mpl.colors.ColorConverter()
-    # without the factor 0.5, the fonts are too big most of the time.
-    # TODO fix this
-    scaling = 0.5 * size / data["font size"]
+    scaling = font_size / data["font size"]
     if scaling != 1.0:
         properties.append(f"scale={scaling:{ff}}")
 

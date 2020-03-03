@@ -132,8 +132,10 @@ def draw_pathcollection(data, obj):
         ec = None
         fc = None
         ls = None
+        ms = None
         marker0 = None
     else:
+        # plt.scatter guides here
         # gather the draw options
         try:
             ec = obj.get_edgecolors()[0]
@@ -149,6 +151,11 @@ def draw_pathcollection(data, obj):
             ls = obj.get_linestyle()[0]
         except (TypeError, IndexError):
             ls = None
+
+        try:
+            ms = obj.get_sizes()[0]
+        except (TypeError, IndexError):
+            ms = None
 
         # "solution" from
         # <https://github.com/matplotlib/matplotlib/issues/4672#issuecomment-378702670>
@@ -179,7 +186,7 @@ def draw_pathcollection(data, obj):
         draw_options += [f"mark={pgfplots_marker}"] + marker_options
 
     # `only mark` plots don't need linewidth
-    data, extra_draw_options = get_draw_options(data, obj, ec, fc, ls, None)
+    data, extra_draw_options = get_draw_options(data, obj, ec, fc, ls, ms, None)
     draw_options += extra_draw_options
 
     if obj.get_cmap():
@@ -228,7 +235,7 @@ def draw_pathcollection(data, obj):
     return data, content
 
 
-def get_draw_options(data, obj, ec, fc, ls, lw, hatch=None):
+def get_draw_options(data, obj, ec, fc, ls, lw, ms, hatch=None):
     """Get the draw options for a given (patch) object.
         Get the draw options for a given (patch) object.
         Input:
@@ -238,6 +245,7 @@ def get_draw_options(data, obj, ec, fc, ls, lw, hatch=None):
             fc - face color
             ls - linestyle
             lw - linewidth
+            ms - markersize
             hatch=None - hatch, i.e., pattern within closed path
         Output:
             draw_options - list, to be ",".join(draw_options) to produce the
@@ -282,6 +290,11 @@ def get_draw_options(data, obj, ec, fc, ls, lw, hatch=None):
         ls_ = mpl_linestyle2pgfplots_linestyle(data, ls)
         if ls_ is not None and ls_ != "solid":
             draw_options.append(ls_)
+
+    if ms is not None:
+        ms = mpl_markersize2pgfp_markersize(data, ms)
+        if ms:
+            draw_options.append(ms)
 
     if hatch is not None:
         # In matplotlib hatches are rendered with edge color and linewidth
@@ -421,3 +434,42 @@ def mpl_linestyle2pgfplots_linestyle(data, line_style, line=None):
         "--": "dashed",
         "-.": "dash pattern=on 1pt off 3pt on 3pt off 3pt",
     }[line_style]
+
+
+
+def mpl_markersize2pgfp_markersize(data, marker_size):
+    if data["strict"]:
+        # Takes the matplotlib linewidths, and just translate them into PGFPlots.
+        try:
+            return {
+                0.1: "ultra thin",
+                0.2: "very thin",
+                0.4: "thin",
+                0.6: "semithick",
+                0.8: "thick",
+                1.2: "very thick",
+                1.6: "ultra thick",
+            }[marker_size]
+        except KeyError:
+            # explicit line width
+            return "mark size={}pt".format(marker_size)
+
+    # The following is an alternative approach to line widths.
+    # The default marker size since matplotlib 3.0 in matplotlib is 36pt, in PGFPlots 2pt
+    # Match the two defaults, and scale for the rest.
+    scaler_marker_size = marker_size / 36  # scale by default marker size
+    try:
+        out = {
+            0.25: "ultra thin",
+            0.5: "very thin",
+            1.0: None,  # default, 'thin'
+            1.5: "semithick",
+            2: "thick",
+            3: "very thick",
+            4: "ultra thick",
+        }[scaler_marker_size]
+    except KeyError:
+        # explicit line width
+        out = "mark size={}pt".format(2 * marker_size)
+
+    return out

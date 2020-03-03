@@ -20,7 +20,7 @@ def get_tikz_code(
     filepath=None,
     axis_width=None,
     axis_height=None,
-    textsize=10.0,
+    textsize=None,
     tex_relative_path_to_data=None,
     externalize_tables=False,
     override_externals=False,
@@ -165,6 +165,8 @@ def get_tikz_code(
     data["strict"] = strict
     data["tikz libs"] = set()
     data["pgfplots libs"] = set()
+    if textsize is None:
+        textsize = plt.rcParams['font.size']
     data["font size"] = textsize
     data["custom colors"] = {}
     data["legend colors"] = []
